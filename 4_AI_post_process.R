@@ -14,32 +14,31 @@ dim(images)
 images <- aperm(images, c(4, 1, 2, 3))
 dim(images)
 
+train_images_raw  <- images[index, ,,] #plot(as.cimg(train_images_raw[1,,]))
+test_images_raw   <- images[-index, ,,]
 
 ##  Flatten the array to calculate the percentiles
-flattened_array <- as.vector(images)
+flattened_array <- as.vector(train_images_raw)
 
 ##  Calculate the 5th and 95th percentiles
 lower_bound <- quantile(flattened_array, 0.000001)
 upper_bound <- quantile(flattened_array, 0.999999)
 
-# Apply the robust normalization
-normalized_array <- (images - lower_bound) / (upper_bound - lower_bound)
+normalize_images <- function(img, low, high) {
+  norm <- (img - low) / (high - low)
+  norm[norm < 0] <- 0
+  norm[norm > 1] <- 1
+  return(norm)
+}
 
-# Clip values outside the range [0, 1]
-normalized_array[normalized_array < 0] <- 0
-normalized_array[normalized_array > 1] <- 1
-images<-normalized_array
-
-TRUE%in%is.na(images) #FALSE therefore no NA values
-
+train_images <- normalize_images(train_images_raw, lower_bound, upper_bound)
+test_images  <- normalize_images(test_images_raw,  lower_bound, upper_bound)
 
 
 # Splitting the data into the same train and test sets
-train_images <- images[index, ,,] #plot(as.cimg(train_images[1,,]))
 train_images <- array_reshape(train_images, c(nrow(train_images), main_dimentions, main_dimentions, 1))
 labels<-metadata_subset[,5]
 train_labels <- labels[index]
-test_images <- images[-index, ,,]
 test_images <- array_reshape(test_images, c(nrow(test_images), main_dimentions, main_dimentions, 1))
 test_labels <- labels[-index]
 
