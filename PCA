@@ -1,0 +1,101 @@
+# Load necessary libraries
+library(FNN)
+library(randomForest)
+library(e1071)
+library(caret)
+library(dplyr)
+library(caret)
+
+
+
+# Flatten images to vectors
+image_data <- lapply(main_list_subset, function(x) as.vector(x))
+image_matrix <- do.call(rbind, image_data)
+
+# --- Step 2: Initialize results storage ---
+results <- data.frame(
+  KNN_RMSE = numeric(20),
+  KNN_Pearson = numeric(20),
+  KNN_Spearman = numeric(20),
+  RF_RMSE = numeric(20),
+  RF_Pearson = numeric(20),
+  RF_Spearman = numeric(20),
+  SVM_RMSE = numeric(20),
+  SVM_Pearson = numeric(20),
+  SVM_Spearman = numeric(20)
+)
+
+
+i=0
+while(i<20){
+i=i+1
+print(i)
+#random split
+trainIndex <- sample(1:nrow(image_matrix), size = 0.8 * nrow(image_matrix))
+train_data <- image_matrix[trainIndex, ]
+test_data <- image_matrix[-trainIndex, ]
+
+target_values <- metadata_subset$GT
+train_target <- target_values[trainIndex] 
+test_target <- target_values[-trainIndex] 
+
+#PCA using train_data
+pca <- prcomp(train_data, center = TRUE, scale. = TRUE)
+loadings <- abs(pca$rotation[, 1:10])  # use first 10 PCs
+pixel_importance <- rowMeans(loadings)
+top_pixels <- order(pixel_importance, decreasing = TRUE)[1:50] # 50 pixels
+
+train_reduced <- train_data[, top_pixels]
+test_reduced <- test_data[, top_pixels]
+
+
+# KNN
+knn_model <- knn.reg(train = train_reduced, test = test_reduced, y = train_target, k = 10)
+pred_knn <- knn_model$pred
+results$KNN_RMSE[i] <- sqrt(mean((test_target - pred_knn)^2))
+results$KNN_Pearson[i] <- cor(test_target, pred_knn, method = "pearson")
+results$KNN_Spearman[i] <- cor(test_target, pred_knn, method = "spearman")
+print("KNN_done")
+
+# Random Forest with ntree = 400
+rf_model <- randomForest(x = train_reduced, y = train_target, ntree = 400)
+pred_rf <- predict(rf_model, newdata = test_reduced)
+results$RF_RMSE[i] <- sqrt(mean((test_target - pred_rf)^2))
+results$RF_Pearson[i] <- cor(test_target, pred_rf, method = "pearson")
+results$RF_Spearman[i] <- cor(test_target, pred_rf, method = "spearman")
+print("RF_done")
+  
+# SVM (e1071) with radial kernel
+svm_model <- svm(x = train_reduced, y = train_target, type = "eps-regression", kernel = "radial")
+pred_svm <- predict(svm_model, newdata = test_reduced)
+results$SVM_RMSE[i] <- sqrt(mean((test_target - pred_svm)^2))
+results$SVM_Pearson[i] <- cor(test_target, pred_svm, method = "pearson")
+results$SVM_Spearman[i] <- cor(test_target, pred_svm, method = "spearman")
+print("SVM_done")  
+
+}
+
+
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+
+
+results_long <- results %>%
+  mutate(iteration = 1:n()) %>%
+  pivot_longer(
+    cols = -iteration,
+    names_to = c("Model", "Metric"),
+    names_sep = "_",
+    values_to = "Value"
+  )
+
+
+ggplot(results_long, aes(x = Model, y = Value, fill = Model)) +
+  geom_boxplot(alpha = 0.7, outlier.color = "black") +
+  facet_wrap(~ Metric, scales = "free_y") +
+  labs(title = "Model Performance over 20 Splits",
+       y = "Value", x = "Model") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
