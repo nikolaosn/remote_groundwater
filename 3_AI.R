@@ -13,34 +13,39 @@ dim(images)
 images <- aperm(images, c(4, 1, 2, 3))
 dim(images)
 
+#first: split
+index <- sample(1:dim(images)[1], round(0.8 * dim(images)[1]))
+train_images_raw  <- images[index, ,,] #plot(as.cimg(train_images_raw[1,,]))
+test_images_raw   <- images[-index, ,,]
 
-#  Flatten the array to calculate the percentiles to exclude outlyiers 
-flattened_array <- as.vector(images)
 
-#  Calculate the 5th and 95th percentiles
+##  Flatten the array to calculate the percentiles
+flattened_array <- as.vector(train_images_raw)
+
+##  Calculate the 5th and 95th percentiles
 lower_bound <- quantile(flattened_array, 0.000001)
 upper_bound <- quantile(flattened_array, 0.999999)
 
-# Apply  normalization
-normalized_array <- (images - lower_bound) / (upper_bound - lower_bound)
 
-# Clip values outside the range [0, 1]
-normalized_array[normalized_array < 0] <- 0
-normalized_array[normalized_array > 1] <- 1
-images<-normalized_array
+normalize_images <- function(img, low, high) {
+  norm <- (img - low) / (high - low)
+  norm[norm < 0] <- 0
+  norm[norm > 1] <- 1
+  return(norm)
+}
+
+train_images <- normalize_images(train_images_raw, lower_bound, upper_bound)
+test_images  <- normalize_images(test_images_raw,  lower_bound, upper_bound)
 
 # test the image representation
-# plot(as.cimg(images[2, ,,]))
+# plot(as.cimg(train_images[2, ,,]))
 
 TRUE%in%is.na(images) #NA check
 
 labels<-metadata_subset[,5]
 # Splitting the data into train and test sets 80/20
-index <- sample(1:dim(images)[1], round(0.8 * dim(images)[1]))
-train_images <- images[index, ,,] #plot(as.cimg(train_images[1,,]))
 train_images <- array_reshape(train_images, c(nrow(train_images), main_dimentions, main_dimentions, 1))
 train_labels <- labels[index]
-test_images <- images[-index, ,,]
 test_images <- array_reshape(test_images, c(nrow(test_images), main_dimentions, main_dimentions, 1))
 test_labels <- labels[-index]
 
